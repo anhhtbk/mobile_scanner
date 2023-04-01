@@ -71,7 +71,7 @@ public class MobileScanner: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
     func requestPermission(_ result: @escaping FlutterResult) {
         AVCaptureDevice.requestAccess(for: .video, completionHandler: { result($0) })
     }
-    
+
     /// Gets called when a new image is added to the buffer
     public func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
         guard let imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
@@ -108,6 +108,20 @@ public class MobileScanner: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
         } else {
             i+=1
         }
+    }
+
+    func metadataOutput(_ output: AVCaptureMetadataOutput, didOutput metadataObjects: [AVMetadataObject], from connection: AVCaptureConnection) {
+        captureSession.stopRunning()
+
+        if let metadataObject = metadataObjects.first {
+            guard let readableObject = metadataObject as? AVMetadataMachineReadableCodeObject else { return }
+            guard let stringValue = readableObject.stringValue else { return }
+            // AudioServicesPlaySystemSound(SystemSoundID(kSystemSoundID_Vibrate))
+            let barcode = Barcode.init(rawValue: stringValue)
+            mobileScannerCallback([barcode], nil, nil)
+        }
+
+        dismiss(animated: true)
     }
 
     /// Start scanning for barcodes
@@ -152,6 +166,15 @@ public class MobileScanner: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
             captureSession.addInput(input)
         } catch {
             throw MobileScannerError.cameraError(error)
+        }
+
+        let metadataOutput = AVCaptureMetadataOutput()
+
+        if (captureSession.canAddOutput(metadataOutput)) {
+            captureSession.addOutput(metadataOutput)
+
+            metadataOutput.setMetadataObjectsDelegate(self, queue: DispatchQueue.main)
+            metadataOutput.metadataObjectTypes = [.code128]
         }
 
         captureSession.sessionPreset = AVCaptureSession.Preset.photo;
@@ -232,32 +255,32 @@ public class MobileScanner: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
             break
         }
     }
-    
+
     /// Set the zoom factor of the camera
     func setScale(_ scale: CGFloat) throws {
         if (device == nil) {
             throw MobileScannerError.torchWhenStopped
         }
-        
+
         do {
             try device.lockForConfiguration()
             var maxZoomFactor = device.activeFormat.videoMaxZoomFactor
-            
+
             var actualScale = (scale * 4) + 1
-            
+
             // Set maximum zoomrate of 5x
             actualScale = min(5.0, actualScale)
-            
+
             // Limit to max rate of camera
             actualScale = min(maxZoomFactor, actualScale)
-            
+
             // Limit to 1.0 scale
             device.ramp(toVideoZoomFactor: actualScale, withRate: 5)
             device.unlockForConfiguration()
         } catch {
             throw MobileScannerError.zoomError(error)
         }
-        
+
     }
 
     /// Analyze a single image
@@ -318,7 +341,7 @@ public class MobileScanner: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
         }
         return Unmanaged<CVPixelBuffer>.passRetained(latestBuffer)
     }
-    
+
     struct MobileScannerStartParameters {
         var width: Double = 0.0
         var height: Double = 0.0
@@ -326,4 +349,3 @@ public class MobileScanner: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
         var textureId: Int64 = 0
     }
 }
-
