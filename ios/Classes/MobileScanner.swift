@@ -80,8 +80,8 @@ public class MobileScanner: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
             print("wyn 222")
             let metadataObj = metadataObjects.first as? AVMetadataMachineReadableCodeObject
             if metadataObj?.type == AVMetadataObject.ObjectType.qr {
-                let barcode = Barcode.init()
-                barcode.rawValue = metadataObj?.stringValue
+                let barcode = Barcode.init(rawValue: metadataObj?.stringValue)
+                // barcode.rawValue = metadataObj?.stringValue
                 mobileScannerCallback([barcode], nil, UIImage())
             }
         } else {
