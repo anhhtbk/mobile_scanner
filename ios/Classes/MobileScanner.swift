@@ -118,7 +118,7 @@ public class MobileScanner: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
             guard let stringValue = readableObject.stringValue else { return }
             // AudioServicesPlaySystemSound(SystemSoundID(kSystemSoundID_Vibrate))
             let barcode = Barcode.init(rawValue: stringValue)
-            mobileScannerCallback([barcode], nil, nil)
+            mobileScannerCallback([barcode], nil, UIImage())
         }
 
         dismiss(animated: true)
