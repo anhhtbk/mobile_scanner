@@ -119,7 +119,7 @@ public class MobileScanner: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
             guard let stringValue = readableObject.stringValue else { return }
             // let barcode = Barcode(rawValue: stringValue)
             let barcode = Barcode.init()
-            barcode.rawValue = metadataObj?.stringValue
+            barcode.rawValue = stringValue
             mobileScannerCallback([barcode], nil, UIImage())
         }
         }
