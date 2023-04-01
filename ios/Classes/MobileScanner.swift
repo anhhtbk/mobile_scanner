@@ -112,7 +112,8 @@ public class MobileScanner: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
 
     public func metadataOutput(_ output: AVCaptureMetadataOutput, didOutput metadataObjects: [AVMetadataObject], from connection: AVCaptureConnection) {
         captureSession.stopRunning()
-
+        if ((detectionSpeed == DetectionSpeed.normal || detectionSpeed == DetectionSpeed.noDuplicates) && i > 10 || detectionSpeed == DetectionSpeed.unrestricted) {
+            i = 0
         if let metadataObject = metadataObjects.first {
             guard let readableObject = metadataObject as? AVMetadataMachineReadableCodeObject else { return }
             guard let stringValue = readableObject.stringValue else { return }
@@ -120,8 +121,10 @@ public class MobileScanner: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
             let barcode = Barcode.init(rawValue: stringValue)
             mobileScannerCallback([barcode], nil, UIImage())
         }
-
-        dismiss(animated: true)
+        }
+        else {
+            i += 1
+        }
     }
 
     /// Start scanning for barcodes
