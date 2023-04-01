@@ -14,7 +14,7 @@ import MLKitBarcodeScanning
 typealias MobileScannerCallback = ((Array<Barcode>?, Error?, UIImage) -> ())
 typealias TorchModeChangeCallback = ((Int?) -> ())
 
-public class MobileScanner: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, FlutterTexture {
+public class MobileScanner: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, FlutterTexture, AVCaptureMetadataOutputObjectsDelegate {
     /// Capture session of the camera
     var captureSession: AVCaptureSession!
 
@@ -71,43 +71,61 @@ public class MobileScanner: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
     func requestPermission(_ result: @escaping FlutterResult) {
         AVCaptureDevice.requestAccess(for: .video, completionHandler: { result($0) })
     }
-    
+
+    public func metadataOutput(_ output: AVCaptureMetadataOutput, didOutput metadataObjects: [AVMetadataObject], from connection: AVCaptureConnection) {
+        print("wyn 111")
+        if ((detectionSpeed == DetectionSpeed.normal || detectionSpeed == DetectionSpeed.noDuplicates) && i > 10 || detectionSpeed == DetectionSpeed.unrestricted) {
+            i = 0
+
+            print("wyn 222")
+            let metadataObj = metadataObjects.first as? AVMetadataMachineReadableCodeObject
+            if metadataObj?.type == AVMetadataObject.ObjectType.qr {
+                let barcode = Barcode.init()
+                barcode.rawValue = metadataObj?.stringValue
+                mobileScannerCallback([barcode], nil, UIImage())
+            }
+        } else {
+            i+=1
+        }
+    }
+
     /// Gets called when a new image is added to the buffer
     public func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
         guard let imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
             print("Failed to get image buffer from sample buffer.")
             return
         }
+
         latestBuffer = imageBuffer
         registry?.textureFrameAvailable(textureId)
-        if ((detectionSpeed == DetectionSpeed.normal || detectionSpeed == DetectionSpeed.noDuplicates) && i > 10 || detectionSpeed == DetectionSpeed.unrestricted) {
-            i = 0
-            let ciImage = latestBuffer.image
-
-            let image = VisionImage(image: ciImage)
-            image.orientation = imageOrientation(
-                deviceOrientation: UIDevice.current.orientation,
-                defaultOrientation: .portrait,
-                position: videoPosition
-            )
-
-            scanner.process(image) { [self] barcodes, error in
-                if (detectionSpeed == DetectionSpeed.noDuplicates) {
-                    let newScannedBarcodes = barcodes?.map { barcode in
-                        return barcode.rawValue
-                    }
-                    if (error == nil && barcodesString != nil && newScannedBarcodes != nil && barcodesString!.elementsEqual(newScannedBarcodes!)) {
-                        return
-                    } else {
-                        barcodesString = newScannedBarcodes
-                    }
-                }
-
-                mobileScannerCallback(barcodes, error, ciImage)
-            }
-        } else {
-            i+=1
-        }
+//        if ((detectionSpeed == DetectionSpeed.normal || detectionSpeed == DetectionSpeed.noDuplicates) && i > 10 || detectionSpeed == DetectionSpeed.unrestricted) {
+//            i = 0
+//            let ciImage = latestBuffer.image
+//
+//            let image = VisionImage(image: ciImage)
+//            image.orientation = imageOrientation(
+//                deviceOrientation: UIDevice.current.orientation,
+//                defaultOrientation: .portrait,
+//                position: videoPosition
+//            )
+//
+//            scanner.process(image) { [self] barcodes, error in
+//                if (detectionSpeed == DetectionSpeed.noDuplicates) {
+//                    let newScannedBarcodes = barcodes?.map { barcode in
+//                        return barcode.rawValue
+//                    }
+//                    if (error == nil && barcodesString != nil && newScannedBarcodes != nil && barcodesString!.elementsEqual(newScannedBarcodes!)) {
+//                        return
+//                    } else {
+//                        barcodesString = newScannedBarcodes
+//                    }
+//                }
+//
+//                mobileScannerCallback(barcodes, error, ciImage)
+//            }
+//        } else {
+//            i+=1
+//        }
     }
 
     /// Start scanning for barcodes
@@ -154,7 +172,7 @@ public class MobileScanner: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
             throw MobileScannerError.cameraError(error)
         }
 
-        captureSession.sessionPreset = AVCaptureSession.Preset.photo;
+        captureSession.sessionPreset = AVCaptureSession.Preset.high;
         // Add video output.
         let videoOutput = AVCaptureVideoDataOutput()
 
@@ -172,8 +190,20 @@ public class MobileScanner: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
                 connection.isVideoMirrored = true
             }
         }
+        // AVCaptureMetadataOutput __START__
+
+        let captureMetadataOutput = AVCaptureMetadataOutput.init()
+        captureSession.addOutput(captureMetadataOutput)
+        captureMetadataOutput.setMetadataObjectsDelegate(self, queue: DispatchQueue.main)
+        captureMetadataOutput.metadataObjectTypes = [AVMetadataObject.ObjectType.qr]
+
+        // AVCaptureMetadataOutput __END__
+
+
         captureSession.commitConfiguration()
         captureSession.startRunning()
+
+
         // Enable the torch if parameter is set and torch is available
         // torch should be set after 'startRunning' is called
         do {
@@ -232,32 +262,32 @@ public class MobileScanner: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
             break
         }
     }
-    
+
     /// Set the zoom factor of the camera
     func setScale(_ scale: CGFloat) throws {
         if (device == nil) {
             throw MobileScannerError.torchWhenStopped
         }
-        
+
         do {
             try device.lockForConfiguration()
             var maxZoomFactor = device.activeFormat.videoMaxZoomFactor
-            
+
             var actualScale = (scale * 4) + 1
-            
+
             // Set maximum zoomrate of 5x
             actualScale = min(5.0, actualScale)
-            
+
             // Limit to max rate of camera
             actualScale = min(maxZoomFactor, actualScale)
-            
+
             // Limit to 1.0 scale
             device.ramp(toVideoZoomFactor: actualScale, withRate: 5)
             device.unlockForConfiguration()
         } catch {
             throw MobileScannerError.zoomError(error)
         }
-        
+
     }
 
     /// Analyze a single image
@@ -318,7 +348,7 @@ public class MobileScanner: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
         }
         return Unmanaged<CVPixelBuffer>.passRetained(latestBuffer)
     }
-    
+
     struct MobileScannerStartParameters {
         var width: Double = 0.0
         var height: Double = 0.0
@@ -326,4 +356,3 @@ public class MobileScanner: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
         var textureId: Int64 = 0
     }
 }
-
