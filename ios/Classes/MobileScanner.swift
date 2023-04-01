@@ -117,7 +117,9 @@ public class MobileScanner: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
         if let metadataObject = metadataObjects.first {
             guard let readableObject = metadataObject as? AVMetadataMachineReadableCodeObject else { return }
             guard let stringValue = readableObject.stringValue else { return }
-            let barcode = Barcode(rawValue: stringValue)
+            // let barcode = Barcode(rawValue: stringValue)
+            let barcode = Barcode.init()
+            barcode.rawValue = metadataObj?.stringValue
             mobileScannerCallback([barcode], nil, UIImage())
         }
         }
