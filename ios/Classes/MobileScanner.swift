@@ -14,7 +14,7 @@ import MLKitBarcodeScanning
 typealias MobileScannerCallback = ((Array<Barcode>?, Error?, UIImage) -> ())
 typealias TorchModeChangeCallback = ((Int?) -> ())
 
-public class MobileScanner: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, FlutterTexture {
+public class MobileScanner: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, FlutterTexture, AVCaptureMetadataOutputObjectsDelegate {
     /// Capture session of the camera
     var captureSession: AVCaptureSession!
 
