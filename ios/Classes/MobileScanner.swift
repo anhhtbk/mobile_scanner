@@ -12,6 +12,7 @@ import MLKitVision
 import MLKitBarcodeScanning
 
 typealias MobileScannerCallback = ((Array<Barcode>?, Error?, UIImage) -> ())
+typealias MobileScannerCallback1 = ((String, Error?, UIImage) -> ())
 typealias TorchModeChangeCallback = ((Int?) -> ())
 
 public class MobileScanner: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, FlutterTexture, AVCaptureMetadataOutputObjectsDelegate {
@@ -32,6 +33,7 @@ public class MobileScanner: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
 
     /// When results are found, this callback will be called
     let mobileScannerCallback: MobileScannerCallback
+    let mobileScannerCallback1: MobileScannerCallback1
 
     /// When torch mode is changes, this callback will be called
     let torchModeChangeCallback: TorchModeChangeCallback
@@ -47,9 +49,10 @@ public class MobileScanner: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
 
     var detectionSpeed: DetectionSpeed = DetectionSpeed.noDuplicates
 
-    init(registry: FlutterTextureRegistry?, mobileScannerCallback: @escaping MobileScannerCallback, torchModeChangeCallback: @escaping TorchModeChangeCallback) {
+    init(registry: FlutterTextureRegistry?, mobileScannerCallback: @escaping MobileScannerCallback, mobileScannerCallback1: @escaping MobileScannerCallback1, torchModeChangeCallback: @escaping TorchModeChangeCallback) {
         self.registry = registry
         self.mobileScannerCallback = mobileScannerCallback
+        self.mobileScannerCallback1 = mobileScannerCallback1
         self.torchModeChangeCallback = torchModeChangeCallback
         super.init()
     }
@@ -80,48 +83,47 @@ public class MobileScanner: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
         }
         latestBuffer = imageBuffer
         registry?.textureFrameAvailable(textureId)
-        if ((detectionSpeed == DetectionSpeed.normal || detectionSpeed == DetectionSpeed.noDuplicates) && i > 10 || detectionSpeed == DetectionSpeed.unrestricted) {
-            i = 0
-            let ciImage = latestBuffer.image
+        // if ((detectionSpeed == DetectionSpeed.normal || detectionSpeed == DetectionSpeed.noDuplicates) && i > 10 || detectionSpeed == DetectionSpeed.unrestricted) {
+        //     i = 0
+        //     let ciImage = latestBuffer.image
 
-            let image = VisionImage(image: ciImage)
-            image.orientation = imageOrientation(
-                deviceOrientation: UIDevice.current.orientation,
-                defaultOrientation: .portrait,
-                position: videoPosition
-            )
+        //     let image = VisionImage(image: ciImage)
+        //     image.orientation = imageOrientation(
+        //         deviceOrientation: UIDevice.current.orientation,
+        //         defaultOrientation: .portrait,
+        //         position: videoPosition
+        //     )
 
-            scanner.process(image) { [self] barcodes, error in
-                if (detectionSpeed == DetectionSpeed.noDuplicates) {
-                    let newScannedBarcodes = barcodes?.map { barcode in
-                        return barcode.rawValue
-                    }
-                    if (error == nil && barcodesString != nil && newScannedBarcodes != nil && barcodesString!.elementsEqual(newScannedBarcodes!)) {
-                        return
-                    } else {
-                        barcodesString = newScannedBarcodes
-                    }
-                }
+        //     scanner.process(image) { [self] barcodes, error in
+        //         if (detectionSpeed == DetectionSpeed.noDuplicates) {
+        //             let newScannedBarcodes = barcodes?.map { barcode in
+        //                 return barcode.rawValue
+        //             }
+        //             if (error == nil && barcodesString != nil && newScannedBarcodes != nil && barcodesString!.elementsEqual(newScannedBarcodes!)) {
+        //                 return
+        //             } else {
+        //                 barcodesString = newScannedBarcodes
+        //             }
+        //         }
 
-                mobileScannerCallback(barcodes, error, ciImage)
-            }
-        } else {
-            i+=1
-        }
+        //         mobileScannerCallback(barcodes, error, ciImage)
+        //     }
+        // } else {
+        //     i+=1
+        // }
     }
 
     public func metadataOutput(_ output: AVCaptureMetadataOutput, didOutput metadataObjects: [AVMetadataObject], from connection: AVCaptureConnection) {
-        captureSession.stopRunning()
+
         if ((detectionSpeed == DetectionSpeed.normal || detectionSpeed == DetectionSpeed.noDuplicates) && i > 10 || detectionSpeed == DetectionSpeed.unrestricted) {
             i = 0
-        if let metadataObject = metadataObjects.first {
+            guard let metadataObject = metadataObjects.first else {
+                return
+            }
             guard let readableObject = metadataObject as? AVMetadataMachineReadableCodeObject else { return }
             guard let stringValue = readableObject.stringValue else { return }
-            // let barcode = Barcode(rawValue: stringValue)
-            let barcode = Barcode.init()
-            barcode.rawValue = stringValue
-            mobileScannerCallback([barcode], nil, UIImage())
-        }
+
+            mobileScannerCallback1(stringValue, nil, latestBuffer.image)
         }
         else {
             i += 1

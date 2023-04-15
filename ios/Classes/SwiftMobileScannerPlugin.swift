@@ -5,25 +5,25 @@ import AVFoundation
 import UIKit
 
 public class SwiftMobileScannerPlugin: NSObject, FlutterPlugin {
-    
+
     /// The mobile scanner object that handles all logic
     private let mobileScanner: MobileScanner
-    
+
     /// The handler sends all information via an event channel back to Flutter
     private let barcodeHandler: BarcodeHandler
 
     static var scanWindow: [CGFloat]?
-    
+
     private static func isBarcodeInScanWindow(barcode: Barcode, imageSize: CGSize) -> Bool {
         let scanwindow = SwiftMobileScannerPlugin.scanWindow!
         let barcodeminX = barcode.cornerPoints![0].cgPointValue.x
         let barcodeminY = barcode.cornerPoints![1].cgPointValue.y
-        
+
         let barcodewidth = barcode.cornerPoints![2].cgPointValue.x - barcodeminX
         let barcodeheight = barcode.cornerPoints![3].cgPointValue.y - barcodeminY
         let barcodeBox = CGRect(x: barcodeminX, y: barcodeminY, width: barcodewidth, height: barcodeheight)
 
-        
+
         let minX = scanwindow[0] * imageSize.width
         let minY = scanwindow[1] * imageSize.height
 
@@ -31,10 +31,10 @@ public class SwiftMobileScannerPlugin: NSObject, FlutterPlugin {
         let height = (scanwindow[3] * imageSize.height) - minY
 
         let scaledWindow =  CGRect(x: minX, y: minY, width: width, height: height)
-        
+
         return scaledWindow.contains(barcodeBox)
     }
-    
+
     init(barcodeHandler: BarcodeHandler, registry: FlutterTextureRegistry) {
         self.mobileScanner = MobileScanner(registry: registry, mobileScannerCallback: { barcodes, error, image in
             if barcodes != nil {
@@ -55,6 +55,12 @@ public class SwiftMobileScannerPlugin: NSObject, FlutterPlugin {
             } else if (error != nil){
                 barcodeHandler.publishEvent(["name": "error", "data": error!.localizedDescription])
             }
+        }, mobileScannerCallback1: { barcode, error, image in
+            if barcode != nil {
+                barcodeHandler.publishEvent(["name": "barcode", "data": [["rawValue": barcode, "format": 1, "type":0]], "image": FlutterStandardTypedData(bytes: image.jpegData(compressionQuality: 0.8)!), "width": image.size.width, "height": image.size.height])
+            } else if (error != nil){
+                barcodeHandler.publishEvent(["name": "error", "data": error!.localizedDescription])
+            }
         }, torchModeChangeCallback: { torchState in
             barcodeHandler.publishEvent(["name": "torchState", "data": torchState])
         })
@@ -68,7 +74,7 @@ public class SwiftMobileScannerPlugin: NSObject, FlutterPlugin {
                                                     "dev.steenbakker.mobile_scanner/scanner/method", binaryMessenger: registrar.messenger())
         registrar.addMethodCallDelegate(instance, channel: methodChannel)
     }
-    
+
     public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
         switch call.method {
         case "state":
@@ -91,7 +97,7 @@ public class SwiftMobileScannerPlugin: NSObject, FlutterPlugin {
             result(FlutterMethodNotImplemented)
         }
     }
-    
+
     /// Parses all parameters and starts the mobileScanner
     private func start(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
         let torch: Bool = (call.arguments as! Dictionary<String, Any?>)["torch"] as? Bool ?? false
@@ -160,7 +166,7 @@ public class SwiftMobileScannerPlugin: NSObject, FlutterPlugin {
         }
         result(nil)
     }
-    
+
     /// Toggles the zoomScale
     private func setScale(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
         var scale = call.arguments as? CGFloat
@@ -187,7 +193,7 @@ public class SwiftMobileScannerPlugin: NSObject, FlutterPlugin {
         }
         result(nil)
     }
-    
+
     /// Toggles the torch
     func updateScanWindow(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
         let scanWindowData: Array? = (call.arguments as? [String: Any])?["rect"] as? [CGFloat]
@@ -195,7 +201,7 @@ public class SwiftMobileScannerPlugin: NSObject, FlutterPlugin {
 
         result(nil)
     }
-    
+
     static func arrayToRect(scanWindowData: [CGFloat]?) -> CGRect? {
         if (scanWindowData == nil) {
             return nil
@@ -209,11 +215,11 @@ public class SwiftMobileScannerPlugin: NSObject, FlutterPlugin {
 
         return CGRect(x: minX, y: minY, width: width, height: height)
     }
-    
+
     /// Analyzes a single image
     private func analyzeImage(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
         let uiImage = UIImage(contentsOfFile: call.arguments as? String ?? "")
-        
+
         if (uiImage == nil) {
             result(FlutterError(code: "MobileScanner",
                                 message: "No image found in analyzeImage!",
